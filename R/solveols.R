@@ -128,7 +128,7 @@ JacobiPara.solve=function(A,v,iter=10000,cores=4){
   const=dim(A)[1]/cores
   ptm0 <- proc.time()[3]
   while(i<=iter){
-    outlist = foreach(j=1:cores, .combine = cbind,.multicombine = TRUE) %dopar%{
+    outlist = foreach::foreach(j=1:cores, .combine = cbind,.multicombine = TRUE) %dopar%{
       begin=const*(j-1)+1
       end=const*j
       x1<-Dinv[begin:end,begin:end]%*%(b[begin:end]-L[begin:end,]%*%x0-U[begin:end,]%*%x0)
