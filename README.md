@@ -13,3 +13,4 @@ library(HW2)
 
 ## Usage
 Check the vignette file.
+
