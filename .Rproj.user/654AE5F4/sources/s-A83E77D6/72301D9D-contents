@@ -1,0 +1,674 @@
+---
+title: "STSCI 6520 HW1"
+author: "Jiayin(Joy) Li (jl3724)"
+date: "4/8/2021"
+output:
+  pdf_document:
+         latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+```{r,echo=FALSE,warning=FALSE, message=FALSE,include=FALSE}
+library(ggplot2)
+require(gridExtra)
+require(doParallel)
+library(optR)
+library(Rlinsolve)
+library(MASS)
+library(glmnet)
+require(doParallel)
+library(parallel)
+```
+
+
+# Iterative  Methods  for  Solving  Linear  System  of  Equations.
+```{r,echo=FALSE,warning=FALSE, message=FALSE,include=FALSE}
+alpha1=1
+alpha2=2
+alpha3=3
+n <- 100
+
+A1 <- diag(alpha1, n)
+A1[abs(row(A1) - col(A1)) == 1] <- -1
+v=rep(c(1,0),n/2)
+b1=A1%*%v
+  
+L1<-lower.tri(A1)*A1  # lower triang. A
+U1<-upper.tri(A1)*A1  # upper triang. A
+D1<-diag(diag(A1)) 
+Dinv1=ginv(D1)
+C.gs1=-Dinv1%*%(L1+U1)
+C.jc1=ginv(L1+D1)%*%U1
+
+A2 <- diag(alpha2, n)
+A2[abs(row(A2) - col(A2)) == 1] <- -1
+v=rep(c(1,0),n/2)
+b2=A2%*%v
+
+L2<-lower.tri(A2)*A2  # lower triang. A
+U2<-upper.tri(A2)*A2  # upper triang. A
+D2<-diag(diag(A2)) 
+Dinv2=ginv(D2)
+C.gs2=-Dinv2%*%(L2+U2)
+C.jc2=ginv(L2+D2)%*%U2
+
+A3 <- diag(alpha3, n)
+A3[abs(row(A3) - col(A3)) == 1] <- -1
+v=rep(c(1,0),n/2)
+b3=A3%*%v
+
+L3<-lower.tri(A3)*A3  # lower triang. A
+U3<-upper.tri(A3)*A3  # upper triang. A
+D3<-diag(diag(A3)) 
+Dinv3=ginv(D3)
+C.gs3=-Dinv3%*%(L3+U3)
+C.jc3=ginv(L3+D3)%*%U3
+
+cat("GaussSeidel",c(norm(C.gs1,"2"),norm(C.gs2,"2"),norm(C.gs3,"2")))
+cat("Jacobi",c(norm(C.jc1,"2"),norm(C.jc2,"2"),norm(C.jc3,"2")))  
+
+#gaussSeidel(A, b, x = rep(0,n), iter = 10000, tol = 1e-07, w = 1, witr = NULL)
+#Z<-optR(A, b, method="gaussseidel", iter=10000)
+#lsolve.gs(A,b,xinit = rep(0,n), reltol = 1e-15,maxiter = 10000)
+#lsolve.jacobi(A,b,xinit = rep(0,n), reltol = 1e-15,maxiter = 10000)
+
+```
+
+For Gauss-Seidel method, we calculate $\|(L+D)^{-1}U\|$, for Jacobi method, we calculate $\|-D^{-1}(L+U)\|$. From the spectral norm of relative matrices, when $\alpha=2,3$, the spectral norm less than 1, so Gauss-Seidel and Jacobi method will converge. We also know that if $A$ is a strictly diagonally dominant matrix by rows, then Jacobi and Gauss-Seidel methods are convergent. So Jacobi and Gauss-Seidel for $A_2$, and $A_3$ will converge. We know that usually Gauss-Seidel converges about twice as fast as Jacobi, but may still be very slow, combined with the spectral norm of relative matrices, I predict Gauss Seidel method is more rapidly convergent than the Jacobi method. 
+
+
+For matrix $A_1$, I used "lsolve.gs" and "lsolve.jacobi" to show it doesn't converge
+```{r,echo=FALSE,warning=FALSE}
+A1.gs=lsolve.gs(A1,b1,xinit = rep(0,n), maxiter = 100)
+A1.jac=lsolve.jacobi(A1,b1,xinit = rep(0,n), maxiter = 100)
+```
+
+For $A_2$ and $A_3$, I used self implemented function to draw the plot. 
+```{r,echo=FALSE, warning = FALSE}
+GS.solve=function(A,v,iter=10000){
+  
+L<-lower.tri(A)*A  # lower triang. A
+U<-upper.tri(A)*A  # upper triang. A
+D<-diag(diag(A))   # diag of A
+b=A%*%v
+
+LDinv=(ginv((L+D)))
+x0=rep(0,n)
+result.gs=matrix(NA,iter,2)
+
+i=1
+ptm0 <- proc.time()[3]
+while(i<=iter){
+  #print(x0)
+  # Gauss-Seidel formula
+  x1<-LDinv%*%(b-U%*%x0)
+  x0<-x1
+ 
+  ptm=proc.time()[3] - ptm0
+  result.gs[i,2]=as.numeric(ptm)
+  error=norm(x1-v,"2")/norm(v,"2")
+  #print(error)
+  result.gs[i,1]=error
+  i=i+1
+}
+
+return(result.gs)
+  
+}
+
+```
+
+```{r,echo=FALSE, warning = FALSE}
+JacobiSeq.solve=function(A,v,iter=10000){
+L<-lower.tri(A)*A  # lower triang. A
+U<-upper.tri(A)*A  # upper triang. A
+D<-diag(diag(A))   # diag of A
+Dinv=ginv(D)
+
+b=A%*%v
+x0=rep(0,n)
+x1=rep(0,n)
+result.gs=matrix(NA,iter,2)
+  
+
+i=1
+ptm0 <- proc.time()[3]
+while(i<=iter){
+  #print(x0)
+  #Jacobi Sequential formula
+  
+  x1<-Dinv%*%(b-(L+U)%*%x0)
+  x0<-x1
+  ptm=proc.time()[3] - ptm0
+  result.gs[i,2]=as.numeric(ptm)
+  error=norm(x1-v,"2")/norm(v,"2")
+  #print(error)
+  result.gs[i,1]=error
+  i=i+1
+}
+return(result.gs)
+}
+```
+
+
+
+```{r,echo=FALSE, warning = FALSE}
+
+JacobiPara.solve=function(A,v,iter=10000){
+L<-lower.tri(A)*A  # lower triang. A
+U<-upper.tri(A)*A  # upper triang. A
+D<-diag(diag(A))   # diag of A
+LU=L+U
+Dinv=ginv(D)
+b=A%*%v
+x0=rep(0,n)
+result.gs=matrix(0,iter,2)
+
+cl=makeCluster(4, setup_timeout = 0.5)
+registerDoParallel(cl)
+
+i=1
+ptm0 <- proc.time()[3]
+while(i<=iter){
+  outlist = foreach(j=1:4, .combine = cbind,.multicombine = TRUE) %dopar%{
+    begin=25*(j-1)+1
+    end=25*j
+    x1<-Dinv[begin:end,begin:end]%*%(b[begin:end]-L[begin:end,]%*%x0-U[begin:end,]%*%x0)
+    x1
+    }
+  
+  x0=as.vector(as.numeric(outlist))
+  ptm=proc.time()[3] - ptm0
+  result.gs[i,2]=as.numeric(ptm)
+  error=norm(x0-v,"2")/norm(v,"2")
+  #print(error)
+  result.gs[i,1]=error
+  i=i+1
+}
+stopCluster(cl)
+return(result.gs)
+}
+
+```
+
+
+```{r,echo=FALSE, warning = FALSE}
+res.gs2=GS.solve(A2,v,iter=10000)
+res.js2=JacobiSeq.solve(A2,v,iter=10000)
+res.jp2=JacobiPara.solve(A2,v,iter=10000)
+```
+
+```{r,echo=FALSE, warning = FALSE}
+iter=10000
+par(mfrow=c(1,3)) 
+plot(seq(1,iter,1),res.gs2[,1],type="l",col="red",xlab="iteration",ylab="error",main="Gauss-Seidel error vs iteration for alpha=2",ylim = c(0,max(res.js2[,1])))
+plot(seq(1,iter,1),res.js2[,1],type="l",xlab="iteration",ylab="error",main="Jacobi (sequential) error vs iteration for alpha=2",ylim = c(0,max(res.js2[,1])),col="green")
+plot(seq(1,iter,1),res.jp2[,1],type="l",xlab="iteration",ylab="error",main="Jacobi (parallel) error vs iteration for alpha=2",ylim = c(0,max(res.js2[,1])),col="blue")
+```
+
+```{r,echo=FALSE, warning = FALSE}
+par(mfrow=c(1,3)) 
+plot(res.gs2[,2],res.gs2[,1],type="l",xlab="runtime",ylab="error",main="Gauss-Seidel error vs runtime for alpha=2",ylim = c(0,max(res.js2[,1])),col="red")
+plot(res.js2[,2],res.js2[,1],type="l",xlab="runtime",ylab="error",main="Jacobi (sequential) error vs runtime for alpha=2",ylim = c(0,max(res.js2[,1])),col="green")
+plot(res.jp2[,2],res.jp2[,1],type="l",xlab="runtime",ylab="error",main="Jacobi (parallel) error vs runtime for alpha=2",ylim = c(0,max(res.js2[,1])),col="blue")
+
+```
+
+
+
+
+
+```{r,echo=FALSE, warning=FALSE}
+res.gs3=GS.solve(A3,v,iter=10000)
+res.js3=JacobiSeq.solve(A3,v,iter=10000)
+res.jp3=JacobiPara.solve(A3,v,iter=10000)
+```
+
+
+```{r,echo=FALSE, warning = FALSE}
+par(mfrow=c(1,3)) 
+plot(seq(1,iter,1),res.gs3[,1],type="l",xlab="iteration",ylab="error",main="Gauss-Seidel error vs iteration for alpha=3",ylim = c(0,max(res.js3[,1])),col="red")
+plot(seq(1,iter,1),res.js3[,1],type="l",xlab="iteration",ylab="error",main="Jacobi (sequential) error vs iteration for alpha=3",ylim = c(0,max(res.js3[,1])),col="green")
+plot(seq(1,iter,1),res.jp3[,1],type="l",xlab="iteration",ylab="error",main="Jacobi (parallel) error vs iteration for alpha=3",ylim = c(0,max(res.js3[,1])),col="blue")
+```
+
+
+```{r,echo=FALSE, warning = FALSE}
+par(mfrow=c(1,3)) 
+plot(res.gs3[,2],res.gs3[,1],type="l",xlab="runtime",ylab="error",main="Gauss-Seidel error vs runtime for alpha=3",ylim = c(0,max(res.js3[,1])),col="red")
+plot(res.js3[,2],res.js3[,1],type="l",xlab="runtime",ylab="error",main="Jacobi (sequential) error vs runtime for alpha=3",ylim = c(0,max(res.js3[,1])),col="green")
+plot(res.jp3[,2],res.jp3[,1],type="l",xlab="runtime",ylab="error",main="Jacobi (parallel) error vs runtime for alpha=3",ylim = c(0,max(res.js3[,1])),col="blue")
+```
+
+From the plot, I noticed that Gauss-Seidel converges faster than Jacobi(sequential) as expected, while Jacobi(parallel) doesn't seem to become faster in runtime. I guess this is because the dimension of $A$ is not large enough and Jacobi(parallel) needs more time to partition matrix, when I tried $A$ with dimension $10000\times10000$, Jacobi(parallel) runs faster than Jacobi(sequential). 
+
+# Leveraging
+
+```{r,echo=FALSE}
+#Data setting
+set.seed(65206520)
+n=500
+X=rt(n, 6)
+#beta=rep(-1,n)
+eps=rnorm(n,0,1)
+Y=-1*X+eps
+beta_ols=lm(Y ~ 0 + X )$coefficients
+```
+
+## Part(a)
+```{r,echo=FALSE}
+#uniform
+r=10
+Pi_1=rep(1/n,n)
+replication=500
+fun_1 <- function(r,Pi,replication=500) {
+beta_unif=rep(NA,replication)
+for (i in 1:replication){
+index_1=sample(c(1:n), size = r, replace = T,prob=Pi_1) 
+#Phi_1=diag(Pi_1[index_1])
+X_star_1=X[index_1]
+Y_star_1=Y[index_1]
+Phi_1=1/ (Pi_1[index_1]^{1/2})
+model_1 <- lm(Y_star_1 ~ 0 + X_star_1 , weights=Phi_1)
+
+beta_hat_1=model_1$coefficients
+beta_unif[i]=abs(beta_hat_1-beta_ols)
+}
+return(beta_unif)
+}
+
+diff_unif=c(fun_1(10,Pi_1),fun_1(50,Pi_1),fun_1(100,Pi_1),fun_1(200,Pi_1),fun_1(300,Pi_1))
+rsize=rep(c(10,50,100,200,300),each=replication)
+
+beta_unifframe=data.frame(Subsamplesize=as.factor(rsize),diff=diff_unif)
+p<-ggplot(beta_unifframe, aes(x=Subsamplesize, y=diff, color=Subsamplesize)) +
+  geom_boxplot()+
+  xlab("Subsample size") + ylab("absolute value of difference between beta_UNIF and beta_ols")+ggtitle("Boxplot for absolute value of difference between beta_UNIF and beta_ols over 500 draws of subsample")
+p
+```
+
+
+
+
+```{r,echo=FALSE}
+#Calculate h_ii
+#Weighted
+XTXinv=solve(t(X)%*%X)
+H=X%*%XTXinv%*%t(X)
+H_ii=diag(H)/sum(diag(H))
+```
+
+```{r,echo=FALSE}
+r=10
+Pi_2=H_ii
+replication=500
+fun_2 <- function(r,Pi,replication=500) {
+beta_unif=rep(NA,replication)
+for (i in 1:replication){
+index_2=sample(c(1:n), size = r, replace = T,prob=Pi_2) 
+
+X_star_2=X[index_2]
+Y_star_2=Y[index_2]
+Phi_2=1/ (Pi_2[index_2]^{1/2})
+#Phi_2=1/ (Pi_2[index_2]^{1/2})
+model_2 <- lm(Y_star_2 ~ 0 + X_star_2 , weights=Phi_2)
+
+beta_hat_2=model_2$coefficients
+beta_unif[i]=abs(beta_hat_2-beta_ols)
+}
+return(beta_unif)
+}
+
+diff_BLEV=c(fun_2(10,Pi_2),fun_2(50,Pi_2),fun_2(100,Pi_2),fun_2(200,Pi_2),fun_2(300,Pi_2))
+rsize=rep(c(10,50,100,200,300),each=replication)
+
+beta_BLEVframe=data.frame(Subsamplesize=as.factor(rsize),diff=diff_BLEV)
+p_2<-ggplot(beta_BLEVframe, aes(x=Subsamplesize, y=diff, color=Subsamplesize)) +
+  geom_boxplot()+
+xlab("Subsample size") + ylab("absolute value of difference between beta_BLEV and beta_ols")+ggtitle("Boxplot for absolute value of difference between beta_BLEV and beta_ols over 500 draws of subsample")
+
+p_2
+grid.arrange(p, p_2, ncol=2,widths=c(5, 5))
+```
+From the boxplots, we know that $\tilde \beta_{BLEV}$ is more accurate than $\tilde \beta_{UNIF}$ for large values of r.
+
+
+## Part(b)
+```{r,echo=FALSE}
+# draw a picture 
+r=20
+set.seed(65206520)
+index_1=sample(c(1:n), size = r, replace = T,prob=Pi_1) 
+X_star_1=X[index_1]
+Y_star_1=Y[index_1]
+Phi_1=1/ (Pi_1[index_1]^{1/2})
+model_1 <- lm(Y_star_1 ~ 0 + X_star_1 , weights=Phi_1)
+
+
+ols <- lm(Y ~ 0 + X )
+plot(X, Y, main="Scatterplot for beta_UNIF")
+abline(ols, col="blue", lwd=3, lty=2)
+abline(0,-1, lwd=3,)
+points(X_star_1,Y_star_1,col="green",pch=4)
+abline(model_1, col="green", lwd=3, lty=2)
+```
+
+```{r,echo=FALSE}
+r=20
+#set.seed(65206520)
+
+index_2=sample(c(1:n), size = r, replace = T,prob=Pi_2) 
+X_star_2=X[index_2]
+Y_star_2=Y[index_2]
+Phi_2=1/ (Pi_2[index_2]^{1/2})
+model_2 <- lm(Y_star_2 ~ 0 + X_star_2 , weights=Phi_2)
+
+
+
+ols <- lm(Y ~ 0 + X )
+plot(X, Y, main="Scatterplot for beta_BLEV")
+abline(ols, col="blue", lwd=3, lty=2)
+abline(0,-1, lwd=3,)
+points(X_star_2,Y_star_2,col="red",pch=4)
+abline(model_2, col="red", lwd=3, lty=2)
+```
+
+In scatterplots,  the true regression function is in the black solid line, the data in black circles,and the OLS estimator using the full sample in the blue dashed line. (a) The uniform leveraging estimator is in the green dashed line. The uniform leveraging subsample is superimposed as green crosses. (b) The weighted leveraging estimator is in the red-dot dashed line. The points in the weighted leveraging subsample are superimposed as red crosses.
+
+
+# Coordinate  Descent  for  Elastic  Net
+```{r,echo=FALSE}
+elasticnet=function(X,Y,alpha,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5){
+  if (alpha==0){alpha_0=0.001}else{alpha_0=alpha}
+  lambda.max=max( abs(t(Y - mean(Y)*(1-mean(Y))) %*% X ) )/ (alpha_0 * n)
+  lambda.min=lambda.max*lambda.min.ratio
+  log.lambda=seq(log(lambda.min),log(lambda.max),length.out = nlambda)
+  lambda.seq=sort(exp(log.lambda),decreasing = TRUE)
+  result=matrix(NA,p+1,nlambda)
+  result[1,]= lambda.seq
+  
+  for (i in 1:nlambda){
+    lambda= lambda.seq[i]
+    beta_li=descent(X,Y,n,lambda,alpha,p,tol)
+    result[2:(p+1),i]=beta_li
+    #print(beta_li)
+  }
+  return(result)
+}
+
+
+
+descent=function(X,Y,n,lambda,alpha,p,tol=1e-5){
+  beta_old=rep(0,p)
+  beta_new=rep(0,p)
+  run=TRUE
+  
+  while(run){
+    beta_old=beta_new
+    for (j in 1:p){
+      X.j=X[,-j]
+      beta.j=beta_new[-j]
+      Ytilde.j=X.j%*%beta.j
+
+      r.j=(Y- Ytilde.j)
+      x.j=X[,j]
+      z=(t(x.j)%*%r.j)/n
+      if (alpha==0){
+         S_operator=n*z
+      beta_j= S_operator/(sum(x.j^2)+lambda)
+     }
+      else{
+         S_operator=sign(z)*max(0, abs(z)-lambda*alpha)
+      beta_j= S_operator/(sum(x.j^2)/n+lambda*(1-alpha))
+      }
+      
+      #print(beta_j)
+      beta_new[j]=beta_j
+      #print(beta_new)
+      }
+    normbeta=sum(abs(beta_new-beta_old))
+    #print(normbeta)
+    #print(beta_new)
+   
+    if (normbeta < tol){run=FALSE}
+  }
+  return(beta_new)
+  
+}
+```
+
+
+```{r,echo=FALSE}
+p=20
+n=20
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=0,intercept=FALSE)
+M=elasticnet(X,Y,alpha=0,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=0,n=20")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+```{r,echo=FALSE}
+p=20
+n=50
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=0,intercept=FALSE)
+M=elasticnet(X,Y,alpha=0,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=0,n=50")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+
+
+```{r,echo=FALSE}
+p=20
+n=100
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=0,intercept=FALSE)
+M=elasticnet(X,Y,alpha=0,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=0,n=100")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+
+
+
+```{r,echo=FALSE}
+p=20
+n=20
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=0.5,intercept=FALSE)
+M=elasticnet(X,Y,alpha=0.5,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=0.5,n=20")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+
+```{r,echo=FALSE}
+p=20
+n=50
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=0.5,intercept=FALSE)
+M=elasticnet(X,Y,alpha=0.5,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=0.5,n=50")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+```{r,echo=FALSE}
+p=20
+n=100
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=0.5,intercept=FALSE)
+M=elasticnet(X,Y,alpha=0.5,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=0.5,n=100")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+
+```{r,echo=FALSE}
+p=20
+n=20
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=1,intercept=FALSE)
+M=elasticnet(X,Y,alpha=1,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=1,n=20")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+```{r,echo=FALSE}
+p=20
+n=50
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=1,intercept=FALSE)
+M=elasticnet(X,Y,alpha=1,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=1,n=50")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+
+```{r,echo=FALSE}
+p=20
+n=100
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+for (i in 1:n){
+X[i,]=mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+eps=rnorm(n,0,1)
+Y=X%*%beta+eps
+elasticnet_fit=glmnet(X, Y,alpha=1,intercept=FALSE)
+M=elasticnet(X,Y,alpha=1,lambda.min.ratio=0.0005,n,p,nlambda=100,tol=1e-5)
+par(mfrow=c(1,2)) 
+plot(elasticnet_fit,label = TRUE,main="glmnet with alpha=1,n=100")
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+#coef(elasticnet_fit)
+#print(elasticnet_fit)
+```
+
+My solution paths are really close to the ones obtained using "glmnet", there is a little bit off when $\alpha=0$, this might due to the different implemention at $\alpha=0$, but when $n=20$, the algorithm seems like unstable, and sometimes doesn't converge to the right place.

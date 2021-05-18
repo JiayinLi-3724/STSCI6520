@@ -1,0 +1,195 @@
+---
+title: "vignette for Package HW2"
+author: "Jiayin(Joy) Li"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+# HW2
+The R Package *HW2* is a package contains three functions:solveols(), algoleverage(), elnetcoord(), from HW 1 for STSCI 6520: Computationally Intensive Statistical Methods.
+
+
+To download and install the package, use `devtools`:
+```{r install_devtool, message=FALSE,warning=FALSE}
+library(devtools)
+devtools::install_github("JiayinLi-3724/STSCI6520")
+```
+
+You can subsequently load the package with the usual R commands:
+
+```{r load, message=FALSE}
+library(HW2)
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE, message=FALSE,include=FALSE}
+library(ggplot2)
+require(gridExtra)
+require(doParallel)
+library(optR)
+library(Rlinsolve)
+library(MASS)
+library(glmnet)
+require(doParallel)
+library(parallel)
+library(HW2)
+```
+
+## A.Iterative  Methods  for  Solving  Linear  System  of  Equations.
+```{r,warning=FALSE, message=FALSE,include=FALSE}
+alpha1=1
+alpha2=2
+alpha3=3
+n <- 100
+
+A1 <- diag(alpha1, n)
+A1[abs(row(A1) - col(A1)) == 1] <- -1
+v=rep(c(1,0),n/2)
+b1=A1%*%v
+  
+L1<-lower.tri(A1)*A1  # lower triang. A
+U1<-upper.tri(A1)*A1  # upper triang. A
+D1<-diag(diag(A1)) 
+Dinv1=ginv(D1)
+C.gs1=-Dinv1%*%(L1+U1)
+C.jc1=ginv(L1+D1)%*%U1
+
+A2 <- diag(alpha2, n)
+A2[abs(row(A2) - col(A2)) == 1] <- -1
+v=rep(c(1,0),n/2)
+b2=A2%*%v
+
+L2<-lower.tri(A2)*A2  # lower triang. A
+U2<-upper.tri(A2)*A2  # upper triang. A
+D2<-diag(diag(A2)) 
+Dinv2=ginv(D2)
+C.gs2=-Dinv2%*%(L2+U2)
+C.jc2=ginv(L2+D2)%*%U2
+
+A3 <- diag(alpha3, n)
+A3[abs(row(A3) - col(A3)) == 1] <- -1
+v=rep(c(1,0),n/2)
+b3=A3%*%v
+
+L3<-lower.tri(A3)*A3  # lower triang. A
+U3<-upper.tri(A3)*A3  # upper triang. A
+D3<-diag(diag(A3)) 
+Dinv3=ginv(D3)
+C.gs3=-Dinv3%*%(L3+U3)
+C.jc3=ginv(L3+D3)%*%U3
+```
+
+`solveols()`: solves a linear system using Gauss-Seidel or Jacobi method, allows user to specifyhow many cores to use for parallel implementation.  
+
+Apply Gauss-Seidel, Jacobi (sequential) and Jacobi (parallel), and plot the relative errors $\|x_k-v\|/\|v\|$ for  first  1000 iterations  against  (a)  number  of  iterations  and  (b)  runtime.
+```{r,warning = FALSE}
+res.gs3=solveols("GaussSeidel",A=A3,v=v,iter=1000) #Gauss Seidel
+res.js3=solveols("Jacobi",A=A3,v=v,iter=1000) #Jacobi(sequential)
+res.jp3=solveols("Jacobi",cores=4,A=A3,v=v,iter=1000) #Jacobi(parallel)
+```
+
+
+```{r,echo=FALSE, warning = FALSE}
+iter=1000
+par(mfrow=c(1,3)) 
+plot(seq(1,iter,1),res.gs3[,1],type="l",xlab="iteration",ylab="error",main="Gauss-Seidel",ylim = c(0,max(res.js3[,1])),col="red")
+plot(seq(1,iter,1),res.js3[,1],type="l",xlab="iteration",ylab="error",main="Jacobi(sequential)",ylim = c(0,max(res.js3[,1])),col="green")
+plot(seq(1,iter,1),res.jp3[,1],type="l",xlab="iteration",ylab="error",main="Jacobi(parallel)",ylim = c(0,max(res.js3[,1])),col="blue")
+```
+
+
+```{r,echo=FALSE, warning = FALSE}
+par(mfrow=c(1,3)) 
+plot(res.gs3[,2],res.gs3[,1],type="l",xlab="runtime",ylab="error",main="Gauss-Seidel",ylim = c(0,max(res.js3[,1])),col="red")
+plot(res.js3[,2],res.js3[,1],type="l",xlab="runtime",ylab="error",main="Jacobi(sequential)",ylim = c(0,max(res.js3[,1])),col="green")
+plot(res.jp3[,2],res.jp3[,1],type="l",xlab="runtime",ylab="error",main="Jacobi(parallel)",ylim = c(0,max(res.js3[,1])),col="blue")
+```
+ 
+## B.Leveraging
+`algoleverage()`: implements algorithmic leveraging for linear regression using uniform and leverage score based subsampling of rows.
+
+```{r,echo=FALSE}
+#Data setting
+set.seed(65206520)
+n=500
+X=rt(n, 6)
+eps=rnorm(n,0,1)
+Y=-1*X+eps
+beta_ols=lm(Y ~ 0 + X )$coefficients
+
+
+#Calculate h_ii
+#Weighted
+XTXinv=solve(t(X)%*%X)
+H=X%*%XTXinv%*%t(X)
+H_ii=diag(H)/sum(diag(H))
+Pi_2=H_ii
+
+```
+
+Use the simulation setting for $r\in {10,50,100}$, and compare the performance of $\tilde{\beta}_{UNIF}$ and $\tilde{\beta}_{BLEV}$ , which use uniform and leverage score based sampling probabilities respectively.  In particular, for every choice of $r$, report boxplots of $|\tilde{\beta}_{UNIF}-\hat{\beta}|$, and $|\tilde{\beta}_{BLEV}-\hat{\beta}|$ over 500 draws of subsample.
+
+```{r,warning = FALSE}
+#compare performance of estimated coefficients use uniform
+d_unif10=algoleverage("unif",X,Y,n,r=10,replication=500,beta_ols=beta_ols)
+d_unif50=algoleverage("unif",X,Y,n,r=50,replication=500,beta_ols=beta_ols)
+d_unif100=algoleverage("unif",X,Y,n,r=100,replication=500,beta_ols=beta_ols)
+
+#compare performance of estimated coefficients use leverage score based sampling probabilities
+d_BLEV10=algoleverage("leverage",X,Y,n,r=10,Pi_2,replication=500,beta_ols=beta_ols)
+d_BLEV50=algoleverage("leverage",X,Y,n,r=50,Pi_2,replication=500,beta_ols=beta_ols)
+d_BLEV100=algoleverage("leverage",X,Y,n,r=100,Pi_2,replication=500,beta_ols=beta_ols)
+```
+
+```{r,echo=FALSE, warning = FALSE}
+replication=500
+diff_unif=c(d_unif10,d_unif50,d_unif100)
+rsize=rep(c(10,50,100),each=replication)
+
+beta_unifframe=data.frame(Subsamplesize=as.factor(rsize),diff=diff_unif)
+p<-ggplot(beta_unifframe, aes(x=Subsamplesize, y=diff, color=Subsamplesize)) +
+  geom_boxplot()+
+  xlab("Subsample size") + ylab("absolute value of difference between beta_UNIF and beta_ols")+ggtitle("Boxplot for absolute value of difference between beta_UNIF and beta_ols over 500 draws of subsample")
+p
+```
+
+
+```{r,echo=FALSE, warning = FALSE}
+diff_BLEV=c(d_BLEV10,d_BLEV50,d_BLEV100)
+rsize=rep(c(10,50,100),each=replication)
+
+beta_BLEVframe=data.frame(Subsamplesize=as.factor(rsize),diff=diff_BLEV)
+p_2<-ggplot(beta_BLEVframe, aes(x=Subsamplesize, y=diff, color=Subsamplesize)) +
+  geom_boxplot()+
+xlab("Subsample size") + ylab("absolute value of difference between beta_BLEV and beta_ols")+ggtitle("Boxplot for absolute value of difference between beta_BLEV and beta_ols over 500 draws of subsample")
+p_2
+```
+
+## C. Coordinate Descent for Elastic Net
+`elnetcoord()`: fits elastic net to data using coordinate descent algorithm.
+
+Plot the solution paths of `elnetcoord()` with $n=20$, $p=20$.
+```{r}
+p=20
+n=20
+mu <- rep(0,20)
+Sigma <- diag(rep(1,20))
+Sigma[1,2]=0.8
+Sigma[2,1]=0.8
+Sigma[5,6]=0.8
+Sigma[6,5]=0.8
+X=matrix(NA,n,p)
+set.seed(65206520)
+for (i in 1:n){X[i,]=MASS::mvrnorm(n=1, mu=mu, Sigma=Sigma)}
+ beta=c(2,0,-2,0,1,0,-1,0,rep(0,12))
+ set.seed(65206520)
+ eps=rnorm(n,0,1)
+ Y=X%*%beta+eps
+M=elasticnet(X,Y,alpha=0,n,p,nlambda=100,tol=1e-5)
+plot(colSums(abs(M[-1,])),M[2,],type="l", col="1",ylim=c(min(M[-1,]),max(M[-1,])),main="self implemented elastic net",xlab ="L1 Norm",ylab="coefficients")
+for (i in 2:20){lines(colSums(abs(M[-1,])),M[i+1,],col=i)}
+```

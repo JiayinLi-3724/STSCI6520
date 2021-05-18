@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1621306754994.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "72301D9D",
+    "lastKnownWriteTime" : 1618280409,
+    "last_content_update" : 1621354630774,
+    "path" : "~/Documents/PhD-1 year/6520/HW/hw1_jl3724_final/STSCI 6520 HW-jl3724.Rmd",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "460,58",
+        "scrollLine" : "451"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}
