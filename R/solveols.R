@@ -109,7 +109,7 @@ JacobiSeq.solve=function(A,v,iter=10000){
   return(result.gs)
 }
 
-
+`%dopar%` <- foreach::`%dopar%`
 JacobiPara.solve=function(A,v,iter=10000,cores=4){
   n=dim(A)[1]
   L<-lower.tri(A)*A  # lower triang. A
